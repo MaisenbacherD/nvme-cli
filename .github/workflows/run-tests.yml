@@ -1,0 +1,40 @@
+---
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  default:
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        compiler: [gcc]
+        buildtype: [appimage]
+    container:
+      image: ghcr.io/igaw/linux-nvme/debian.python:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install dependencies
+        run: |
+          pip install nose2 flake8 mypy autopep8 isort
+      - name: build
+        run: |
+          scripts/build.sh -b ${{ matrix.buildtype }} -c ${{ matrix.compiler }}
+      - name: install
+        run: |
+          sudo meson install -C .build-ci
+      - name: run test
+        run: |
+          nose2 --verbose --start-dir tests nvme_writezeros_test
+      - uses: actions/upload-artifact@v4
+        name: upload logs
+        if: failure()
+        with:
+          name: logs files
+          path: |
+            .build-ci/meson-logs/*.txt
