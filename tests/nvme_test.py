@@ -147,7 +147,7 @@ class TestNVMe(unittest.TestCase):
         self.assertEqual(proc.wait(), 0, "ERROR : pci rescan failed")
 
     def get_ctrl_id(self):
-        """ Wrapper for extracting the controller id.
+        """ Wrapper for extracting the first controller id.
             - Args:
                 - None
             - Returns:
@@ -160,8 +160,10 @@ class TestNVMe(unittest.TestCase):
                                 encoding='utf-8')
         err = proc.wait()
         self.assertEqual(err, 0, "ERROR : nvme list-ctrl failed")
-        line = proc.stdout.readline()
-        ctrl_id = line.split(":")[1].strip()
+        lines = proc.stdout.readlines()
+        self.assertTrue(len(lines) > 1, "ERROR : nvme list-ctrl could not find ctrl")
+        # Skipping fist stdout line "num of ctrls present: <num_ctrls>"
+        ctrl_id = lines[1].split("]:")[1].strip()
         return ctrl_id
 
     def get_ns_list(self):
