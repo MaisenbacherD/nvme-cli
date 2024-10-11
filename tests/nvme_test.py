@@ -147,7 +147,7 @@ class TestNVMe(unittest.TestCase):
         self.assertEqual(proc.wait(), 0, "ERROR : pci rescan failed")
 
     def get_ctrl_id(self):
-        """ Wrapper for extracting the controller id.
+        """ Wrapper for extracting the first controller id.
             - Args:
                 - None
             - Returns:
@@ -160,8 +160,10 @@ class TestNVMe(unittest.TestCase):
                                 encoding='utf-8')
         err = proc.wait()
         self.assertEqual(err, 0, "ERROR : nvme list-ctrl failed")
-        line = proc.stdout.readline()
-        ctrl_id = line.split(":")[1].strip()
+        lines = proc.stdout.readlines()
+        self.assertTrue(len(lines) > 1, "ERROR : nvme list-ctrl could not find ctrl")
+        # Skipping fist stdout line "num of ctrls present: <num_ctrls>"
+        ctrl_id = lines[1].split("]:")[1].strip()
         return ctrl_id
 
     def get_ns_list(self):
@@ -206,6 +208,41 @@ class TestNVMe(unittest.TestCase):
                 break
         print(max_ns)
         return int(max_ns)
+
+    def get_lba_format_size(self):
+        """ Wrapper for extracting lba format size of the given flbas
+            - Args:
+                - None
+            - Returns:
+                - lba format size as a tuple of (data_size, metadata_size) in bytes.
+        """
+        pattern = re.compile(r'lbaf\s+' + str(self.flbas) + r'\s+:\s+ms:(\d+)\s+lbads:(\d+)')
+        nvme_id_ns_cmd = f"nvme id-ns {self.ns1}"
+        proc = subprocess.Popen(nvme_id_ns_cmd,
+                                shell=True,
+                                stdout=subprocess.PIPE,
+                                encoding='utf-8')
+        err = proc.wait()
+        self.assertEqual(err, 0, "ERROR : reading id-ns")
+
+        ms_expo = -1
+        ds_expo = -1
+        for line in proc.stdout:
+            match = pattern.search(line)
+            if match:
+                ms_expo = int(match.group(1))
+                ds_expo = int(match.group(2))
+                break
+
+        self.assertNotEqual(ds_expo, -1, "Error : could not match the given flbas to an existing lbaf")
+
+        ds = 0
+        ms = 0
+        if ds_expo > 0:
+            ds = (1 << ds_expo)
+        if ms_expo > 0:
+            ms = (1 << ms_expo)
+        return (ds, ms)
 
     def get_ncap(self):
         """ Wrapper for extracting capacity.
