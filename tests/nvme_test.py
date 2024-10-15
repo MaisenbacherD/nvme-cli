@@ -240,10 +240,22 @@ class TestNVMe(unittest.TestCase):
             - Returns:
                 - Optional Copy Formats Supported
         """
-        pattern = re.compile(r'^ocfs\s*: 0x[0-9a-fA-F]+$')
-        output = subprocess.check_output(["nvme", "id-ctrl", self.ctrl], encoding='utf-8')
-        ocfs_line = next(line for line in output.splitlines() if pattern.match(line))
-        ocfs = ocfs_line.split(":")[1].strip()
+        pattern = re.compile(r'^ocfs\s*: (0$|[0-9a-fA-F]+$)')
+        ocfs = "-1"
+        id_ctrl_cmd = f"nvme id-ctrl {self.ctrl}"
+        proc = subprocess.Popen(id_ctrl_cmd,
+                                shell=True,
+                                stdout=subprocess.PIPE,
+                                encoding='utf-8')
+        err = proc.wait()
+        self.assertEqual(err, 0, "ERROR : reading id-ctrl for ocfs failed")
+
+        for line in proc.stdout:
+            if pattern.match(line):
+                ocfs = line.split(":")[1].strip()
+                break
+
+        self.assertNotEqual(ocfs, "-1", "ERROR : reading ocfs failed")
         return int(ocfs, 16)
 
     def get_format(self):
