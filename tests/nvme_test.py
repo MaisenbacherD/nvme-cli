@@ -268,6 +268,28 @@ class TestNVMe(unittest.TestCase):
         print(ncap)
         return int(ncap)
 
+    def get_id_ctrl_field_value(self, field_pattern):
+        """ Wrapper for extracting id-ctrl field values
+            - Args:
+                - None
+            - Returns:
+                - Filed value of the given regex field_pattern
+        """
+        field_value = "-1"
+        id_ctrl_cmd = f"nvme id-ctrl {self.ctrl}"
+        proc = subprocess.Popen(id_ctrl_cmd,
+                                shell=True,
+                                stdout=subprocess.PIPE,
+                                encoding='utf-8')
+        err = proc.wait()
+        self.assertEqual(err, 0, "ERROR : reading id-ctrl failed")
+        for line in proc.stdout:
+            if field_pattern.match(line):
+                field_value = line.split(":")[1].strip()
+                break
+        self.assertNotEqual(field_value, "-1", f"ERROR : reading field for given pattern {field_pattern.pattern} failed")
+        return field_value
+
     def get_ocfs(self):
         """ Wrapper for extracting optional copy formats supported
             - Args:
@@ -275,11 +297,8 @@ class TestNVMe(unittest.TestCase):
             - Returns:
                 - Optional Copy Formats Supported
         """
-        pattern = re.compile(r'^ocfs\s*: 0x[0-9a-fA-F]+$')
-        output = subprocess.check_output(["nvme", "id-ctrl", self.ctrl], encoding='utf-8')
-        ocfs_line = next(line for line in output.splitlines() if pattern.match(line))
-        ocfs = ocfs_line.split(":")[1].strip()
-        return int(ocfs, 16)
+        pattern = re.compile(r'^ocfs\s*: (0$|[0-9a-fA-F]+$)')
+        return int(self.get_id_ctrl_field_value(pattern), 16)
 
     def get_format(self):
         """ Wrapper for extracting format.
