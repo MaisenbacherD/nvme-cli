@@ -63,10 +63,13 @@ class TestNVMeFormatCmd(TestNVMe):
     def setUp(self):
         """ Pre Section for TestNVMeFormatCmd """
         super().setUp()
-        self.dps = 0                 # ns data protection settings
-        self.flbas = 0               # ns formattes logical block settings
-        self.nsze = 0x1400000        # ns size
-        self.ncap = 0x1400000        # ns capacity
+        self.dps = 0
+        self.flbas = 0
+        # Assuming run_ns_io with 4KiB * 10 writes and at
+        # minimum lba format 512B -> (4096B * 10)/512B = 80 = 0x50
+        ncap = 0x50
+        self.ncap = ncap
+        self.nsze = ncap
         self.ctrl_id = self.get_ctrl_id()
         self.lba_format_list = []
         self.ms_list = []
