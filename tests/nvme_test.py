@@ -233,6 +233,31 @@ class TestNVMe(unittest.TestCase):
         print(ncap)
         return int(ncap)
 
+    def compare_cmd_supported(self):
+        """ Wrapper for extracting optional NVM 'compare' command support
+            - Args:
+                - None
+            - Returns:
+                - True if 'compare' is supported, otherwise False
+        """
+        pattern = re.compile(r"^oncs\s*: (0$|0x[0-9a-fA-F]+$)")
+        oncs = "-1"
+        id_ctrl_cmd = f"nvme id-ctrl {self.ctrl}"
+        proc = subprocess.Popen(id_ctrl_cmd,
+                                shell=True,
+                                stdout=subprocess.PIPE,
+                                encoding='utf-8')
+        err = proc.wait()
+        self.assertEqual(err, 0, "ERROR : reading id-ctrl for oncs failed")
+
+        for line in proc.stdout:
+            if pattern.match(line):
+                oncs = line.split(":")[1].strip()
+                break
+
+        self.assertNotEqual(oncs, "-1", "ERROR : reading ocfs failed")
+        return int(oncs, 16) & 0x1
+
     def get_ocfs(self):
         """ Wrapper for extracting optional copy formats supported
             - Args:

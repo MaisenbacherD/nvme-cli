@@ -48,6 +48,8 @@ class TestNVMeCompareCmd(TestNVMeIO):
     def setUp(self):
         """ Pre Section for TestNVMeCompareCmd """
         super().setUp()
+        if not self.compare_cmd_supported():
+            self.skipTest("because: Optional NVM Command 'Compare' (NVMCMPS) not supported")
         self.data_size = 1024
         self.start_block = 1023
         self.setup_log_dir(self.__class__.__name__)
