@@ -13,6 +13,7 @@ NVMe LBA Status Log Testcase :-
 """
 
 import subprocess
+import re
 
 from nvme_test import TestNVMe
 
@@ -23,14 +24,20 @@ class TestNVMeGetLbaStatusCmd(TestNVMe):
     Represents Get LBA Status test.
     """
 
+    def get_lba_status_supported(self):
+        """ Check if 'Get LBA Status' command is supported by the device """
+        pattern = re.compile(r"^oacs\s*: (0$|0x[0-9a-fA-F]+$)")
+        return int(self.get_id_ctrl_field_value(pattern), 16) & (1 << 9)
+
     def setUp(self):
         """ Pre Section for TestNVMeGetLbaStatusCmd. """
         super().setUp()
+        if not self.get_lba_status_supported():
+            self.skipTest("because: Optional Admin Command 'Get LBA Status' (OACS->GLSS) not supported")
         self.start_lba = 0
         self.block_count = 0
-        self.namespace = 1
         self.max_dw = 1
-        self.action = 11
+        self.action = 0x11
         self.range_len = 1
         self.setup_log_dir(self.__class__.__name__)
 
@@ -51,7 +58,7 @@ class TestNVMeGetLbaStatusCmd(TestNVMe):
         """
         err = 0
         get_lba_status_cmd = "nvme get-lba-status " + self.ctrl + \
-                             " --namespace-id=" + str(self.namespace) + \
+                             " --namespace-id=" + str(self.ns1) + \
                              " --start-lba=" + str(self.start_lba) + \
                              " --max-dw=" + str(self.max_dw) + \
                              " --action=" + str(self.action) + \
