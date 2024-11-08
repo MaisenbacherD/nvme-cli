@@ -164,8 +164,7 @@ class TestNVMe(unittest.TestCase):
         nvme_reset_cmd = f"{self.nvme_bin} reset {self.ctrl}"
         err = subprocess.call(nvme_reset_cmd,
                               shell=True,
-                              stdout=subprocess.PIPE,
-                              encoding='utf-8')
+                              stdout=subprocess.DEVNULL)
         self.assertEqual(err, 0, "ERROR : nvme reset failed")
         rescan_cmd = "echo 1 > /sys/bus/pci/rescan"
         proc = subprocess.Popen(rescan_cmd,
@@ -389,8 +388,7 @@ class TestNVMe(unittest.TestCase):
                 f"--namespace-id={str(nsid)}"
             err = subprocess.call(id_ns_cmd,
                                   shell=True,
-                                  stdout=subprocess.PIPE,
-                                  encoding='utf-8')
+                                  stdout=subprocess.DEVNULL)
         return err
 
     def attach_ns(self, ctrl_id, ns_id):
@@ -405,8 +403,7 @@ class TestNVMe(unittest.TestCase):
             f"--namespace-id={str(ns_id)} --controllers={ctrl_id}"
         err = subprocess.call(attach_ns_cmd,
                               shell=True,
-                              stdout=subprocess.PIPE,
-                              encoding='utf-8')
+                              stdout=subprocess.DEVNULL)
         if err == 0:
             # enumerate new namespace block device
             self.nvme_reset_ctrl()
@@ -426,8 +423,7 @@ class TestNVMe(unittest.TestCase):
             f"--namespace-id={str(nsid)} --controllers={ctrl_id}"
         return subprocess.call(detach_ns_cmd,
                                shell=True,
-                               stdout=subprocess.PIPE,
-                               encoding='utf-8')
+                               stdout=subprocess.DEVNULL)
 
     def delete_and_validate_ns(self, nsid):
         """ Wrapper for deleting and validating that namespace is deleted.
@@ -441,8 +437,7 @@ class TestNVMe(unittest.TestCase):
             f"--namespace-id={str(nsid)}"
         err = subprocess.call(delete_ns_cmd,
                               shell=True,
-                              stdout=subprocess.PIPE,
-                              encoding='utf-8')
+                              stdout=subprocess.DEVNULL)
         self.assertEqual(err, 0, "ERROR : delete namespace failed")
         return err
 
