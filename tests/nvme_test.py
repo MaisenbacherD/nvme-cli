@@ -72,6 +72,10 @@ class TestNVMe(unittest.TestCase):
             shutil.rmtree(self.log_dir, ignore_errors=True)
         self.create_and_attach_default_ns()
 
+    @classmethod
+    def tearDownClass(cls):
+        print("\n")
+
     def create_and_attach_default_ns(self):
         """ Creates a default namespace with the full capacity of the ctrls NVM
             - Args:
@@ -103,8 +107,8 @@ class TestNVMe(unittest.TestCase):
                 - None
         """
         x1, x2, dev = self.ctrl.split('/')
-        cmd = cmd = "find /sys/devices -name \\*" + dev + " | grep -i pci"
-        err = subprocess.call(cmd, shell=True)
+        cmd = "find /sys/devices -name \\*" + dev + " | grep -i pci"
+        err = subprocess.call(cmd, shell=True, stdout=subprocess.DEVNULL)
         self.assertEqual(err, 0, "ERROR : Only NVMe PCI subsystem is supported")
 
     def load_config(self):
@@ -451,15 +455,12 @@ class TestNVMe(unittest.TestCase):
         """
         smart_log_cmd = f"{self.nvme_bin} smart-log {self.ctrl} " + \
             f"--namespace-id={str(nsid)}"
-        print(smart_log_cmd)
         proc = subprocess.Popen(smart_log_cmd,
                                 shell=True,
                                 stdout=subprocess.PIPE,
                                 encoding='utf-8')
         err = proc.wait()
         self.assertEqual(err, 0, "ERROR : nvme smart log failed")
-        smart_log_output = proc.communicate()[0]
-        print(f"{smart_log_output}")
         return err
 
     def get_id_ctrl(self, vendor=False):
@@ -474,7 +475,6 @@ class TestNVMe(unittest.TestCase):
         else:
             id_ctrl_cmd = f"{self.nvme_bin} id-ctrl " +\
                 f"--vendor-specific {self.ctrl}"
-        print(id_ctrl_cmd)
         proc = subprocess.Popen(id_ctrl_cmd,
                                 shell=True,
                                 stdout=subprocess.PIPE,
@@ -519,14 +519,14 @@ class TestNVMe(unittest.TestCase):
         ns_path = self.ctrl + "n" + str(nsid)
         io_cmd = "dd if=" + ns_path + " of=/dev/null" + " bs=" + \
                  str(block_size) + " count=" + str(count) + " > /dev/null 2>&1"
-        print(io_cmd)
+        print(f"Running io: {io_cmd}")
         run_io = subprocess.Popen(io_cmd, shell=True, stdout=subprocess.PIPE,
                                   encoding='utf-8')
         run_io_result = run_io.communicate()[1]
         self.assertEqual(run_io_result, None)
         io_cmd = "dd if=/dev/zero of=" + ns_path + " bs=" + \
                  str(block_size) + " count=" + str(count) + " > /dev/null 2>&1"
-        print(io_cmd)
+        print(f"Running io: {io_cmd}")
         run_io = subprocess.Popen(io_cmd, shell=True, stdout=subprocess.PIPE,
                                   encoding='utf-8')
         run_io_result = run_io.communicate()[1]
