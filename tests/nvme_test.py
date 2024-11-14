@@ -60,17 +60,20 @@ class TestNVMe(unittest.TestCase):
         self.nvme_bin = "nvme"
         self.do_validate_pci_device = True
         self.default_nsid = 0x1
+        self.flbas = 0
         self.config_file = 'tests/config.json'
 
         self.load_config()
         if self.do_validate_pci_device:
             self.validate_pci_device()
+        print(f"\nsetup: ctrl: {self.ctrl}, ns1: {self.ns1}, default_nsid: {self.default_nsid}, flbas: {self.flbas}\n")
 
     def tearDown(self):
         """ Post Section for TestNVMe. """
         if self.clear_log_dir is True:
             shutil.rmtree(self.log_dir, ignore_errors=True)
         self.create_and_attach_default_ns()
+        print(f"\nteardown: ctrl: {self.ctrl}, ns1: {self.ns1}, default_nsid: {self.default_nsid}, flbas: {self.flbas}\n")
 
     @classmethod
     def tearDownClass(cls):
@@ -510,7 +513,8 @@ class TestNVMe(unittest.TestCase):
             - Returns:
                 - None
         """
-        block_size = mmap.PAGESIZE if int(lbads) < 9 else 2 ** int(lbads)
+        (ds, _) = self.get_lba_format_size()
+        block_size = ds if int(lbads) < 9 else 2 ** int(lbads)
         ns_path = self.ctrl + "n" + str(nsid)
         io_cmd = "dd if=" + ns_path + " of=/dev/null" + " bs=" + \
                  str(block_size) + " count=" + str(count) + " > /dev/null 2>&1"

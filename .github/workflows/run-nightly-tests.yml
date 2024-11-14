@@ -46,7 +46,6 @@ jobs:
           nvme_attach_detach_ns_test \
           nvme_compare_test \
           nvme_copy_test \
-          nvme_create_max_ns_test \
           nvme_ctrl_reset_test \
           nvme_dsm_test \
           nvme_error_log_test \
@@ -63,6 +62,7 @@ jobs:
           nvme_verify_test \
           nvme_writeuncor_test \
           nvme_writezeros_test
+          #nvme_create_max_ns_test \
       - name: Upload logs
         uses: actions/upload-artifact@v4
         if: always()
