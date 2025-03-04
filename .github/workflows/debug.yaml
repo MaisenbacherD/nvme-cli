@@ -1,0 +1,27 @@
+name: Actions Runner Controller Demo
+on:
+  workflow_dispatch:
+
+env:
+  KERNEL_VERSION: "version-test"
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pretending to build the kernel
+        run: |
+          echo "We are on pretending to build the kernel on github's infrastructure"
+          sleep 10
+
+      - name: Notifying the next job to pick up the kernel that we just build
+        run: |
+          echo "${KERNEL_VERSION}"
+
+  run-tests-on-kernel:
+    runs-on: arc-kernel-vm-runner-set
+    needs: build-kernel
+    steps:
+      - name: Print debug info 
+        run: |
+          uname -a
