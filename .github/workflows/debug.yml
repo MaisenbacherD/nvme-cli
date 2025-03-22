@@ -1,0 +1,33 @@
+name: Debug
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  KERNEL_COMMIT_SHA: "${{ github.event.pull_request.head.sha }}"
+  KERNEL_TREE: "https://github.com/${{ github.repository }}"
+  #TODO: Delete the following lines:
+  KERNEL_VERSION: "57e0be7d92c5"
+
+#This workflow requires two k8s actions-runner-controllers (ARC) to be active.
+#One for building/anouncing the kernel and fedora image and the other one for spawning the VM resource.
+jobs:
+  build-kernel:
+    #This step runs in a container in the k8s cluster 
+    runs-on: arc-kernel-builder
+    steps:
+      - name: Notifying the next job to pick up the Fedora image with the correct tag that we just build
+        run: |
+          echo "${KERNEL_VERSION}"
+
+  run-tests-on-kernel:
+    #ATTENTION! This section formats all available NVMe devices. Be careful when changing the `runs-on` tag!
+    #This step runs in a VM with the previously compiled kernel in the k8s cluster 
+    runs-on: arc-vm-runner-set
+    needs: build-kernel
+    steps:
+      - name: Print VM debug info
+        run: |
+          uname -a
+          lsblk
