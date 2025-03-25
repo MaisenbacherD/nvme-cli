@@ -7,8 +7,19 @@ on:
     - cron: '0 01 * * *'
 
 jobs:
+  request-kernel-version:
+    runs-on: ubuntu-latest
+    steps:
+      #We don't have to build the kernel here, as we have a cron job running on
+      #the k8s cluster that builds this target nightly.
+      - name: Request nightly build Linus' master tree kernel build for the next step
+        run: |
+          #echo "KERNEL_VERSION=linus-master" >> $GITHUB_ENV
+          echo "KERNEL_VERSION=v6.13" >> $GITHUB_ENV
+          echo "${KERNEL_VERSION}"
   nightly-tests:
-    runs-on: nvme-nvm
+    runs-on: arc-vm-runner-set
+    needs: request-kernel-version
     container:
       image: ghcr.io/linux-nvme/debian.python:latest
       #Expose all devices to the container through the `privileged` flag.
