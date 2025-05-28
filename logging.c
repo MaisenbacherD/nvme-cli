@@ -107,7 +107,7 @@ static void nvme_log_retry(int errnum)
 	printf("passthru command returned '%s'\n", strerror(errnum));
 }
 
-int nvme_submit_passthru(int fd, unsigned long ioctl_cmd,
+int nvme_submit_passthru(nvme_link_t l, unsigned long ioctl_cmd,
 			 struct nvme_passthru_cmd *cmd, __u32 *result)
 {
 	struct timeval start;
@@ -119,7 +119,7 @@ int nvme_submit_passthru(int fd, unsigned long ioctl_cmd,
 
 	if (!nvme_cfg.dry_run) {
 retry:
-		err = ioctl(fd, ioctl_cmd, cmd);
+		err = ioctl(nvme_link_get_fd(l), ioctl_cmd, cmd);
 		if (err && (errno == EAGAIN ||
 			    (errno == EINTR && !nvme_sigint_received))) {
 			nvme_log_retry(errno);
@@ -139,7 +139,7 @@ retry:
 	return err;
 }
 
-int nvme_submit_passthru64(int fd, unsigned long ioctl_cmd,
+int nvme_submit_passthru64(nvme_link_t l, unsigned long ioctl_cmd,
 			   struct nvme_passthru_cmd64 *cmd,
 			   __u64 *result)
 {
@@ -152,7 +152,7 @@ int nvme_submit_passthru64(int fd, unsigned long ioctl_cmd,
 
 	if (!nvme_cfg.dry_run) {
 retry:
-		err = ioctl(fd, ioctl_cmd, cmd);
+		err = ioctl(nvme_link_get_fd(l), ioctl_cmd, cmd);
 		if (err && (errno == EAGAIN ||
 			    (errno == EINTR && !nvme_sigint_received))) {
 			nvme_log_retry(errno);

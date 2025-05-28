@@ -38,7 +38,7 @@ static const char *perfc_feat = "performance characteristics feature";
 static const char *hctm_feat = "host controlled thermal management feature";
 static const char *timestamp_feat = "timestamp feature";
 
-static int feat_get(struct nvme_dev *dev, const __u8 fid, __u32 cdw11, __u8 sel, const char *feat)
+static int feat_get(nvme_link_t l, const __u8 fid, __u32 cdw11, __u8 sel, const char *feat)
 {
 	__u32 result;
 	int err;
@@ -47,7 +47,7 @@ static int feat_get(struct nvme_dev *dev, const __u8 fid, __u32 cdw11, __u8 sel,
 	_cleanup_free_ void *buf = NULL;
 
 	if (!NVME_CHECK(sel, GET_FEATURES_SEL, SUPPORTED))
-		nvme_get_feature_length(fid, cdw11, &len);
+		nvme_get_feature_length(fid, cdw11, NVME_DATA_TFR_CTRL_TO_HOST, &len);
 
 	if (len) {
 		buf = nvme_alloc(len - 1);
@@ -57,7 +57,6 @@ static int feat_get(struct nvme_dev *dev, const __u8 fid, __u32 cdw11, __u8 sel,
 
 	struct nvme_get_features_args args = {
 		.args_size = sizeof(args),
-		.fd = dev_fd(dev),
 		.fid = fid,
 		.sel = sel,
 		.timeout = NVME_DEFAULT_IOCTL_TIMEOUT,
@@ -67,7 +66,7 @@ static int feat_get(struct nvme_dev *dev, const __u8 fid, __u32 cdw11, __u8 sel,
 		.data_len = len,
 	};
 
-	err = nvme_get_features(&args);
+	err = nvme_get_features(l, &args);
 	if (!err) {
 		if (NVME_CHECK(sel, GET_FEATURES_SEL, SUPPORTED))
 			nvme_show_select_result(fid, result);
@@ -82,14 +81,13 @@ static int feat_get(struct nvme_dev *dev, const __u8 fid, __u32 cdw11, __u8 sel,
 	return err;
 }
 
-static int power_mgmt_set(struct nvme_dev *dev, const __u8 fid, __u8 ps, __u8 wh, bool save)
+static int power_mgmt_set(nvme_link_t l, const __u8 fid, __u8 ps, __u8 wh, bool save)
 {
 	__u32 result;
 	int err;
 
 	struct nvme_set_features_args args = {
 		.args_size = sizeof(args),
-		.fd = dev_fd(dev),
 		.fid = fid,
 		.cdw11 = NVME_SET(ps, FEAT_PWRMGMT_PS) | NVME_SET(wh, FEAT_PWRMGMT_WH),
 		.save = save,
@@ -97,7 +95,7 @@ static int power_mgmt_set(struct nvme_dev *dev, const __u8 fid, __u8 ps, __u8 wh
 		.result = &result,
 	};
 
-	err = nvme_set_features(&args);
+	err = nvme_set_features(l, &args);
 
 	nvme_show_init();
 
@@ -122,7 +120,8 @@ static int feat_power_mgmt(int argc, char **argv, struct command *cmd, struct pl
 	const char *wh = "workload hint";
 	const __u8 fid = NVME_FEAT_FID_POWER_MGMT;
 
-	_cleanup_nvme_dev_ struct nvme_dev *dev = NULL;
+	_cleanup_nvme_root_ nvme_root_t r = NULL;
+	_cleanup_nvme_link_ nvme_link_t l = NULL;
 	int err;
 
 	struct config {
@@ -137,19 +136,19 @@ static int feat_power_mgmt(int argc, char **argv, struct command *cmd, struct pl
 		  OPT_BYTE("ps", 'p', &cfg.ps, ps),
 		  OPT_BYTE("wh", 'w', &cfg.wh, wh));
 
-	err = parse_and_open(&dev, argc, argv, POWER_MGMT_DESC, opts);
+	err = parse_and_open(&r, &l, argc, argv, POWER_MGMT_DESC, opts);
 	if (err)
 		return err;
 
 	if (argconfig_parse_seen(opts, "ps"))
-		err = power_mgmt_set(dev, fid, cfg.ps, cfg.wh, argconfig_parse_seen(opts, "save"));
+		err = power_mgmt_set(l, fid, cfg.ps, cfg.wh, argconfig_parse_seen(opts, "save"));
 	else
-		err = feat_get(dev, fid, 0, cfg.sel, power_mgmt_feat);
+		err = feat_get(l, fid, 0, cfg.sel, power_mgmt_feat);
 
 	return err;
 }
 
-static int perfc_set(struct nvme_dev *dev, __u8 fid, __u32 cdw11, struct perfc_config *cfg,
+static int perfc_set(nvme_link_t l, __u8 fid, __u32 cdw11, struct perfc_config *cfg,
 		     bool save)
 {
 	__u32 result;
@@ -163,7 +162,6 @@ static int perfc_set(struct nvme_dev *dev, __u8 fid, __u32 cdw11, struct perfc_c
 
 	struct nvme_set_features_args args = {
 		.args_size = sizeof(args),
-		.fd = dev_fd(dev),
 		.fid = fid,
 		.cdw11 = cdw11,
 		.save = save,
@@ -199,7 +197,7 @@ static int perfc_set(struct nvme_dev *dev, __u8 fid, __u32 cdw11, struct perfc_c
 		break;
 	}
 
-	err = nvme_set_features(&args);
+	err = nvme_set_features(l, &args);
 
 	nvme_show_init();
 
@@ -228,7 +226,8 @@ static int feat_perfc(int argc, char **argv, struct command *cmd, struct plugin 
 	const char *attrl = "attribute length";
 	const char *vs_data = "vendor specific data";
 
-	_cleanup_nvme_dev_ struct nvme_dev *dev = NULL;
+	_cleanup_nvme_root_ nvme_root_t r = NULL;
+	_cleanup_nvme_link_ nvme_link_t l = NULL;
 	int err;
 	__u8 fid = NVME_FEAT_FID_PERF_CHARACTERISTICS;
 	__u32 cdw11;
@@ -244,7 +243,7 @@ static int feat_perfc(int argc, char **argv, struct command *cmd, struct plugin 
 		  OPT_SHRT("attrl", 'A', &cfg.attrl, attrl),
 		  OPT_FILE("vs-data", 'V', &cfg.vs_data, vs_data));
 
-	err = parse_and_open(&dev, argc, argv, PERFC_DESC, opts);
+	err = parse_and_open(&r, &l, argc, argv, PERFC_DESC, opts);
 	if (err)
 		return err;
 
@@ -252,21 +251,20 @@ static int feat_perfc(int argc, char **argv, struct command *cmd, struct plugin 
 
 	if (argconfig_parse_seen(opts, "rvspa") || argconfig_parse_seen(opts, "r4karl") ||
 	    argconfig_parse_seen(opts, "paid"))
-		err = perfc_set(dev, fid, cdw11, &cfg, argconfig_parse_seen(opts, "save"));
+		err = perfc_set(l, fid, cdw11, &cfg, argconfig_parse_seen(opts, "save"));
 	else
-		err = feat_get(dev, fid, cdw11, cfg.sel, perfc_feat);
+		err = feat_get(l, fid, cdw11, cfg.sel, perfc_feat);
 
 	return err;
 }
 
-static int hctm_set(struct nvme_dev *dev, const __u8 fid, __u16 tmt1, __u16 tmt2, bool save)
+static int hctm_set(nvme_link_t l, const __u8 fid, __u16 tmt1, __u16 tmt2, bool save)
 {
 	__u32 result;
 	int err;
 
 	struct nvme_set_features_args args = {
 		.args_size = sizeof(args),
-		.fd = dev_fd(dev),
 		.fid = fid,
 		.cdw11 = NVME_SET(tmt1, FEAT_HCTM_TMT1) | NVME_SET(tmt2, FEAT_HCTM_TMT2),
 		.save = save,
@@ -274,7 +272,7 @@ static int hctm_set(struct nvme_dev *dev, const __u8 fid, __u16 tmt1, __u16 tmt2
 		.result = &result,
 	};
 
-	err = nvme_set_features(&args);
+	err = nvme_set_features(l, &args);
 
 	nvme_show_init();
 
@@ -297,7 +295,8 @@ static int feat_hctm(int argc, char **argv, struct command *cmd, struct plugin *
 {
 	const __u8 fid = NVME_FEAT_FID_HCTM;
 
-	_cleanup_nvme_dev_ struct nvme_dev *dev = NULL;
+	_cleanup_nvme_root_ nvme_root_t r = NULL;
+	_cleanup_nvme_link_ nvme_link_t l = NULL;
 	int err;
 
 	struct config {
@@ -312,19 +311,19 @@ static int feat_hctm(int argc, char **argv, struct command *cmd, struct plugin *
 		  OPT_SHRT("tmt1", 't', &cfg.tmt1, TMT(1)),
 		  OPT_SHRT("tmt2", 'T', &cfg.tmt2, TMT(2)));
 
-	err = parse_and_open(&dev, argc, argv, HCTM_DESC, opts);
+	err = parse_and_open(&r, &l, argc, argv, HCTM_DESC, opts);
 	if (err)
 		return err;
 
 	if (argconfig_parse_seen(opts, "tmt1") || argconfig_parse_seen(opts, "tmt2"))
-		err = hctm_set(dev, fid, cfg.tmt1, cfg.tmt2, argconfig_parse_seen(opts, "save"));
+		err = hctm_set(l, fid, cfg.tmt1, cfg.tmt2, argconfig_parse_seen(opts, "save"));
 	else
-		err = feat_get(dev, fid, 0, cfg.sel, hctm_feat);
+		err = feat_get(l, fid, 0, cfg.sel, hctm_feat);
 
 	return err;
 }
 
-static int timestamp_set(struct nvme_dev *dev, const __u8 fid, __u64 tstmp, bool save)
+static int timestamp_set(nvme_link_t l, const __u8 fid, __u64 tstmp, bool save)
 {
 	__u32 result;
 	int err;
@@ -333,7 +332,6 @@ static int timestamp_set(struct nvme_dev *dev, const __u8 fid, __u64 tstmp, bool
 
 	struct nvme_set_features_args args = {
 		.args_size = sizeof(args),
-		.fd = dev_fd(dev),
 		.fid = fid,
 		.save = save,
 		.timeout = NVME_DEFAULT_IOCTL_TIMEOUT,
@@ -344,7 +342,7 @@ static int timestamp_set(struct nvme_dev *dev, const __u8 fid, __u64 tstmp, bool
 
 	memcpy(ts.timestamp, &timestamp, sizeof(ts.timestamp));
 
-	err = nvme_set_features(&args);
+	err = nvme_set_features(l, &args);
 
 	nvme_show_init();
 
@@ -367,7 +365,8 @@ static int feat_timestamp(int argc, char **argv, struct command *cmd, struct plu
 	const __u8 fid = NVME_FEAT_FID_TIMESTAMP;
 	const char *tstmp = "timestamp";
 
-	_cleanup_nvme_dev_ struct nvme_dev *dev = NULL;
+	_cleanup_nvme_root_ nvme_root_t r = NULL;
+	_cleanup_nvme_link_ nvme_link_t l = NULL;
 	int err;
 
 	struct config {
@@ -379,19 +378,19 @@ static int feat_timestamp(int argc, char **argv, struct command *cmd, struct plu
 
 	FEAT_ARGS(opts, OPT_LONG("tstmp", 't', &cfg.tstmp, tstmp));
 
-	err = parse_and_open(&dev, argc, argv, TIMESTAMP_DESC, opts);
+	err = parse_and_open(&r, &l, argc, argv, TIMESTAMP_DESC, opts);
 	if (err)
 		return err;
 
 	if (argconfig_parse_seen(opts, "tstmp"))
-		err = timestamp_set(dev, fid, cfg.tstmp, argconfig_parse_seen(opts, "save"));
+		err = timestamp_set(l, fid, cfg.tstmp, argconfig_parse_seen(opts, "save"));
 	else
-		err = feat_get(dev, fid, 0, cfg.sel, timestamp_feat);
+		err = feat_get(l, fid, 0, cfg.sel, timestamp_feat);
 
 	return err;
 }
 
-static int temp_thresh_set(int fd, const __u8 fid, struct argconfig_commandline_options *opts,
+static int temp_thresh_set(nvme_link_t l, const __u8 fid, struct argconfig_commandline_options *opts,
 			   struct temp_thresh_config *cfg)
 {
 	__u32 result;
@@ -406,7 +405,7 @@ static int temp_thresh_set(int fd, const __u8 fid, struct argconfig_commandline_
 	if (save)
 		sel = NVME_GET_FEATURES_SEL_SAVED;
 
-	err = nvme_get_features_temp_thresh2(fd, sel, cfg->tmpsel, cfg->thsel, &result);
+	err = nvme_get_features_temp_thresh(l, sel, cfg->tmpsel, cfg->thsel, &result);
 	if (!err) {
 		nvme_feature_decode_temp_threshold(result, &tmpth, &tmpsel, &thsel, &tmpthh);
 		if (!argconfig_parse_seen(opts, "tmpth"))
@@ -415,8 +414,8 @@ static int temp_thresh_set(int fd, const __u8 fid, struct argconfig_commandline_
 			cfg->tmpthh = tmpthh;
 	}
 
-	err = nvme_set_features_temp_thresh2(fd, cfg->tmpth, cfg->tmpsel, cfg->thsel, cfg->tmpthh,
-					     save, &result);
+	err = nvme_set_features_temp_thresh(l, cfg->tmpth, cfg->tmpsel, cfg->thsel, cfg->tmpthh,
+					    save, &result);
 
 	nvme_show_init();
 
@@ -445,7 +444,8 @@ static int feat_temp_thresh(int argc, char **argv, struct command *cmd, struct p
 	const char *thsel = "threshold type select";
 	const char *tmpthh = "temperature threshold hysteresis";
 
-	_cleanup_nvme_dev_ struct nvme_dev *dev = NULL;
+	_cleanup_nvme_root_ nvme_root_t r = NULL;
+	_cleanup_nvme_link_ nvme_link_t l = NULL;
 	int err;
 
 	struct temp_thresh_config cfg = { 0 };
@@ -456,14 +456,14 @@ static int feat_temp_thresh(int argc, char **argv, struct command *cmd, struct p
 		  OPT_BYTE("thsel", 'H', &cfg.thsel, thsel),
 		  OPT_BYTE("tmpthh", 'M', &cfg.tmpthh, tmpthh));
 
-	err = parse_and_open(&dev, argc, argv, TEMP_THRESH_DESC, opts);
+	err = parse_and_open(&r, &l, argc, argv, TEMP_THRESH_DESC, opts);
 	if (err)
 		return err;
 
 	if (argconfig_parse_seen(opts, "tmpth") || argconfig_parse_seen(opts, "tmpthh"))
-		err = temp_thresh_set(dev_fd(dev), fid, opts, &cfg);
+		err = temp_thresh_set(l, fid, opts, &cfg);
 	else
-		err = feat_get(dev, fid, NVME_SET(cfg.tmpsel, FEAT_TT_TMPSEL) |
+		err = feat_get(l, fid, NVME_SET(cfg.tmpsel, FEAT_TT_TMPSEL) |
 			       NVME_SET(cfg.thsel, FEAT_TT_THSEL), cfg.sel, timestamp_feat);
 
 	return err;

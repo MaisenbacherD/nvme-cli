@@ -174,19 +174,18 @@
 #define SNDK_INVALID_CUSTOMER_ID            -1
 
 int sndk_get_pci_ids(nvme_root_t r,
-		struct nvme_dev *dev,
+		nvme_link_t l,
 		uint32_t *device_id,
 		uint32_t *vendor_id);
 
-int sndk_get_vendor_id(struct nvme_dev *dev,
+int sndk_get_vendor_id(nvme_link_t l,
 		uint32_t *vendor_id);
 
 bool sndk_check_device(nvme_root_t r,
-		struct nvme_dev *dev);
+		nvme_link_t l);
 
 __u64 sndk_get_drive_capabilities(nvme_root_t r,
-		struct nvme_dev *dev);
+		nvme_link_t l);
 
 __u64 sndk_get_enc_drive_capabilities(nvme_root_t r,
-	    struct nvme_dev *dev);
-
+		nvme_link_t l);

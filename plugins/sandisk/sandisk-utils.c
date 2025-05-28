@@ -18,7 +18,7 @@
 #include "plugins/wdc/wdc-nvme-cmds.h"
 
 
-int sndk_get_pci_ids(nvme_root_t r, struct nvme_dev *dev,
+int sndk_get_pci_ids(nvme_root_t r, nvme_link_t l,
 			   uint32_t *device_id, uint32_t *vendor_id)
 {
 	char vid[256], did[256], id[32];
@@ -26,7 +26,7 @@ int sndk_get_pci_ids(nvme_root_t r, struct nvme_dev *dev,
 	nvme_ns_t n = NULL;
 	int fd, ret;
 
-	c = nvme_scan_ctrl(r, dev->name);
+	c = nvme_scan_ctrl(r, nvme_link_get_name(l));
 	if (c) {
 		snprintf(vid, sizeof(vid), "%s/device/vendor",
 			nvme_ctrl_get_sysfs_dir(c));
@@ -34,9 +34,9 @@ int sndk_get_pci_ids(nvme_root_t r, struct nvme_dev *dev,
 			nvme_ctrl_get_sysfs_dir(c));
 		nvme_free_ctrl(c);
 	} else {
-		n = nvme_scan_namespace(dev->name);
+		n = nvme_scan_namespace(nvme_link_get_name(l));
 		if (!n) {
-			fprintf(stderr, "Unable to find %s\n", dev->name);
+			fprintf(stderr, "Unable to find %s\n", nvme_link_get_name(l));
 			return -1;
 		}
 
@@ -88,13 +88,13 @@ int sndk_get_pci_ids(nvme_root_t r, struct nvme_dev *dev,
 	return 0;
 }
 
-int sndk_get_vendor_id(struct nvme_dev *dev, uint32_t *vendor_id)
+int sndk_get_vendor_id(nvme_link_t l, uint32_t *vendor_id)
 {
-	int ret;
 	struct nvme_id_ctrl ctrl;
+	int ret;
 
 	memset(&ctrl, 0, sizeof(struct nvme_id_ctrl));
-	ret = nvme_identify_ctrl(dev_fd(dev), &ctrl);
+	ret = nvme_identify_ctrl(l, &ctrl);
 	if (ret) {
 		fprintf(stderr, "ERROR: SNDK: nvme_identify_ctrl() failed 0x%x\n", ret);
 		return -1;
@@ -105,16 +105,16 @@ int sndk_get_vendor_id(struct nvme_dev *dev, uint32_t *vendor_id)
 	return ret;
 }
 
-bool sndk_check_device(nvme_root_t r, struct nvme_dev *dev)
+bool sndk_check_device(nvme_root_t r, nvme_link_t l)
 {
-	int ret;
-	bool supported;
 	uint32_t read_device_id = -1, read_vendor_id = -1;
+	bool supported;
+	int ret;
 
-	ret = sndk_get_pci_ids(r, dev, &read_device_id, &read_vendor_id);
+	ret = sndk_get_pci_ids(r, l, &read_device_id, &read_vendor_id);
 	if (ret < 0) {
 		/* Use the identify nvme command to get vendor id due to NVMeOF device. */
-		if (sndk_get_vendor_id(dev, &read_vendor_id) < 0)
+		if (sndk_get_vendor_id(l, &read_vendor_id) < 0)
 			return false;
 	}
 
@@ -131,17 +131,16 @@ bool sndk_check_device(nvme_root_t r, struct nvme_dev *dev)
 	return supported;
 }
 
-__u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
+__u64 sndk_get_drive_capabilities(nvme_root_t r, nvme_link_t l)
 {
-	__u64 capabilities = 0;
-
-	int ret;
 	uint32_t read_device_id = -1, read_vendor_id = -1;
+	__u64 capabilities = 0;
 	__u32 cust_id;
+	int ret;
 
-	ret = sndk_get_pci_ids(r, dev, &read_device_id, &read_vendor_id);
+	ret = sndk_get_pci_ids(r, l, &read_device_id, &read_vendor_id);
 	if (ret < 0) {
-		if (sndk_get_vendor_id(dev, &read_vendor_id) < 0)
+		if (sndk_get_vendor_id(l, &read_vendor_id) < 0)
 			return capabilities;
 	}
 
@@ -151,7 +150,7 @@ __u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 	 * so we can only use the vendor_id
 	 */
 	if (read_device_id == -1 && read_vendor_id != -1) {
-		capabilities = sndk_get_enc_drive_capabilities(r, dev);
+		capabilities = sndk_get_enc_drive_capabilities(r, l);
 		return capabilities;
 	}
 
@@ -166,12 +165,12 @@ __u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 					SNDK_DRIVE_CAP_RESIZE |
 					SNDK_DRIVE_CAP_CLEAR_PCIE);
 			/* verify the 0xCA log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_NVME_GET_DEVICE_INFO_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_CA_LOG_PAGE;
 
 			/* verify the 0xD0 log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_NVME_GET_VU_SMART_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_D0_LOG_PAGE;
 			break;
@@ -181,7 +180,7 @@ __u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 		case SNDK_NVME_SN640_DEV_ID_2:
 		case SNDK_NVME_SN640_DEV_ID_3:
 			/* verify the 0xC0 log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_NVME_GET_SMART_CLOUD_ATTR_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_C0_LOG_PAGE;
 
@@ -195,36 +194,36 @@ __u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 					SNDK_DRIVE_CAP_LOG_PAGE_DIR);
 
 			/* verify the 0xC1 (OCP Error Recovery) log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_ERROR_REC_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_OCP_C1_LOG_PAGE;
 
 			/* verify the 0xC3 (OCP Latency Monitor) log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_LATENCY_MON_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_C3_LOG_PAGE;
 
 			/* verify the 0xC4 (OCP Device Capabilities) log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_DEV_CAP_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_OCP_C4_LOG_PAGE;
 
 			/* verify the 0xC5 (OCP Unsupported Requirements) log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_UNSUPPORTED_REQS_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_OCP_C5_LOG_PAGE;
 
 			/* verify the 0xCA log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_NVME_GET_DEVICE_INFO_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_CA_LOG_PAGE;
 
 			/* verify the 0xD0 log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_NVME_GET_VU_SMART_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_D0_LOG_PAGE;
 
-			cust_id = run_wdc_get_fw_cust_id(r, dev);
+			cust_id = run_wdc_get_fw_cust_id(r, l);
 			if (cust_id == SNDK_INVALID_CUSTOMER_ID) {
 				fprintf(stderr, "%s: ERROR: SNDK: invalid customer id\n", __func__);
 				return -1;
@@ -247,7 +246,7 @@ __u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 		case SNDK_NVME_SN840_DEV_ID:
 		case SNDK_NVME_SN840_DEV_ID_1:
 			/* verify the 0xC0 log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_NVME_GET_EOL_STATUS_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_C0_LOG_PAGE;
 
@@ -263,12 +262,12 @@ __u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 					SNDK_DRIVE_CAP_LOG_PAGE_DIR);
 
 			/* verify the 0xCA log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_NVME_GET_DEVICE_INFO_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_CA_LOG_PAGE;
 
 			/* verify the 0xD0 log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_NVME_GET_VU_SMART_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_D0_LOG_PAGE;
 			break;
@@ -281,27 +280,27 @@ __u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 		case SNDK_NVME_SN655_DEV_ID:
 		case SNDK_NVME_SN655_DEV_ID_1:
 			/* verify the 0xC0 log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_NVME_GET_SMART_CLOUD_ATTR_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_C0_LOG_PAGE;
 
 			/* verify the 0xC1 (OCP Error Recovery) log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_ERROR_REC_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_OCP_C1_LOG_PAGE;
 
 			/* verify the 0xC3 (OCP Latency Monitor) log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_LATENCY_MON_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_C3_LOG_PAGE;
 
 			/* verify the 0xC4 (OCP Device Capabilities) log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_DEV_CAP_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_OCP_C4_LOG_PAGE;
 
 			/* verify the 0xC5 (OCP Unsupported Requirements) log page is supported */
-			if (run_wdc_nvme_check_supported_log_page(r, dev,
+			if (run_wdc_nvme_check_supported_log_page(r, l,
 				SNDK_UNSUPPORTED_REQS_LOG_ID))
 				capabilities |= SNDK_DRIVE_CAP_OCP_C5_LOG_PAGE;
 
@@ -314,7 +313,7 @@ __u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 					 SNDK_DRIVE_CAP_REASON_ID |
 					 SNDK_DRIVE_CAP_LOG_PAGE_DIR);
 
-			cust_id = run_wdc_get_fw_cust_id(r, dev);
+			cust_id = run_wdc_get_fw_cust_id(r, l);
 			if (cust_id == SNDK_INVALID_CUSTOMER_ID) {
 				fprintf(stderr, "%s: ERROR: SNDK: invalid customer id\n", __func__);
 				return -1;
@@ -468,15 +467,14 @@ __u64 sndk_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 	return capabilities;
 }
 
-__u64 sndk_get_enc_drive_capabilities(nvme_root_t r,
-					    struct nvme_dev *dev)
+__u64 sndk_get_enc_drive_capabilities(nvme_root_t r, nvme_link_t l)
 {
 	int ret;
 	uint32_t read_vendor_id;
 	__u64 capabilities = 0;
 	__u32 cust_id;
 
-	ret = sndk_get_vendor_id(dev, &read_vendor_id);
+	ret = sndk_get_vendor_id(l, &read_vendor_id);
 	if (ret < 0)
 		return capabilities;
 
@@ -488,26 +486,26 @@ __u64 sndk_get_enc_drive_capabilities(nvme_root_t r,
 			SNDK_DRIVE_CAP_RESIZE);
 
 		/* verify the 0xC3 log page is supported */
-		if (run_wdc_nvme_check_supported_log_page(r, dev,
+		if (run_wdc_nvme_check_supported_log_page(r, l,
 			SNDK_LATENCY_MON_LOG_ID))
 			capabilities |= SNDK_DRIVE_CAP_C3_LOG_PAGE;
 
 		/* verify the 0xCB log page is supported */
-		if (run_wdc_nvme_check_supported_log_page(r, dev,
+		if (run_wdc_nvme_check_supported_log_page(r, l,
 			SNDK_NVME_GET_FW_ACT_HISTORY_LOG_ID))
 			capabilities |= SNDK_DRIVE_CAP_FW_ACTIVATE_HISTORY;
 
 		/* verify the 0xCA log page is supported */
-		if (run_wdc_nvme_check_supported_log_page(r, dev,
+		if (run_wdc_nvme_check_supported_log_page(r, l,
 			SNDK_NVME_GET_DEVICE_INFO_LOG_ID))
 			capabilities |= SNDK_DRIVE_CAP_CA_LOG_PAGE;
 
 		/* verify the 0xD0 log page is supported */
-		if (run_wdc_nvme_check_supported_log_page(r, dev,
+		if (run_wdc_nvme_check_supported_log_page(r, l,
 			SNDK_NVME_GET_VU_SMART_LOG_ID))
 			capabilities |= SNDK_DRIVE_CAP_D0_LOG_PAGE;
 
-		cust_id = run_wdc_get_fw_cust_id(r, dev);
+		cust_id = run_wdc_get_fw_cust_id(r, l);
 		if (cust_id == SNDK_INVALID_CUSTOMER_ID) {
 			fprintf(stderr, "%s: ERROR: SNDK: invalid customer id\n", __func__);
 			return -1;

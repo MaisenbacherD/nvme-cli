@@ -114,8 +114,8 @@ int run_wdc_vs_temperature_stats(int argc, char **argv,
 		struct plugin *plugin);
 
 bool run_wdc_nvme_check_supported_log_page(nvme_root_t r,
-		struct nvme_dev *dev,
+		nvme_link_t l,
 		__u8 log_id);
 
 __u32 run_wdc_get_fw_cust_id(nvme_root_t r,
-		struct nvme_dev *dev);
+		nvme_link_t l);

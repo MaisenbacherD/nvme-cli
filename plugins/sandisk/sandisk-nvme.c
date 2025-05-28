@@ -132,26 +132,26 @@ static int sndk_capabilities(int argc, char **argv,
 		struct plugin *plugin)
 {
 	const char *desc = "Send a capabilities command.";
+	_cleanup_nvme_link_ nvme_link_t l = NULL;
+	_cleanup_nvme_root_ nvme_root_t r = NULL;
 	uint64_t capabilities = 0;
-	struct nvme_dev *dev;
-	nvme_root_t r;
 	int ret;
 
 	OPT_ARGS(opts) = {
 		OPT_END()
 	};
 
-	ret = parse_and_open(&dev, argc, argv, desc, opts);
+	ret = parse_and_open(&r, &l, argc, argv, desc, opts);
 	if (ret)
 		return ret;
 
 	/* get capabilities */
 	r = nvme_scan(NULL);
-	sndk_check_device(r, dev);
-	capabilities = sndk_get_drive_capabilities(r, dev);
+	sndk_check_device(r, l);
+	capabilities = sndk_get_drive_capabilities(r, l);
 
 	/* print command and supported status */
-	printf("Sandisk Plugin Capabilities for NVME device:%s\n", dev->name);
+	printf("Sandisk Plugin Capabilities for NVME device:%s\n", nvme_link_get_name(l));
 	printf("vs-internal-log               : %s\n",
 	       capabilities & SNDK_DRIVE_CAP_INTERNAL_LOG_MASK ? "Supported" : "Not Supported");
 	printf("vs-nand-stats                 : %s\n",
@@ -216,8 +216,6 @@ static int sndk_capabilities(int argc, char **argv,
 	printf("set-latency-monitor-feature   : %s\n",
 	       capabilities & SNDK_DRIVE_CAP_SET_LATENCY_MONITOR ? "Supported" : "Not Supported");
 	printf("capabilities                  : Supported\n");
-	nvme_free_tree(r);
-	dev_close(dev);
 
 	return 0;
 }
