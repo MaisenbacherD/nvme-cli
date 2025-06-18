@@ -1,0 +1,40 @@
+---
+name: debug
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  KERNEL_VERSION: "linus-master"
+
+jobs:
+  debug:
+    runs-on: arc-vm-dennis-nvme-cli
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: "MaisenbacherD/blktests-ci"
+          ref: "fix-arc"
+
+      - name: Run on VM
+        uses: ./.github/actions/kubevirt-action
+        with:
+          kernel_version: ${{ env.KERNEL_VERSION }}
+          run_cmds: |
+            lsblk
+            uname -a
+
+            cat /etc/profile.d/testdevices.sh
+
+            echo TEST
+            echo $ZBD0
+
+
+      # - name: Upload logs
+      #   uses: actions/upload-artifact@v4
+      #   if: always()
+      #   with:
+      #     name: vm-logs
+      #     path: |
+      #       ./vm_console_output.log
