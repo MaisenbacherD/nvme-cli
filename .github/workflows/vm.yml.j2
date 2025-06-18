@@ -1,0 +1,89 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: {{ vm_name }}
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      name: runner
+    spec:
+      architecture: amd64
+      terminationGracePeriodSeconds: 30
+      domain:
+        firmware:
+          kernelBoot:
+            container:
+              image: container-registry.local:5000/linux-kernel-containerdisk:{{ kernel_version }}
+              initrdPath: /boot/initramfs-{{ kernel_version }}.img
+              kernelPath: /boot/bzImage-{{ kernel_version }}
+              imagePullPolicy: Always
+            kernelArgs: "no_timer_check console=tty1 console=ttyS0,115200n8 systemd=off root=/dev/vda4 rootflags=subvol=root"
+        devices:
+          filesystems:
+            - name: prepare-nvme-devices
+              virtiofs: {}
+          disks:
+            - name: containerdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+            - name: kernel-modules
+              cdrom:
+                bus: sata
+          interfaces:
+            - name: default
+              masquerade: {}
+          hostDevices:
+            - name: nvme-zns-0
+              deviceName: devices.kubevirt.io/nvme-wdc-zn540
+            - name: nvme-conv-0
+              deviceName: devices.kubevirt.io/nvme-wdc-sn640
+        cpu:
+          cores: 4
+        resources:
+          requests:
+            memory: 8Gi
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: containerdisk
+          containerDisk:
+            image: quay.io/containerdisks/fedora:42
+        - name: kernel-modules
+          containerDisk:
+            image: container-registry.local:5000/linux-kernel-containerdisk:{{ kernel_version }}
+            path: /boot/kernel-modules.isofs
+            imagePullPolicy: Always
+        - name: prepare-nvme-devices
+          configMap:
+            name: prepare-nvme-devices
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |-
+              #cloud-config
+              users:
+                - name: fedora
+                  sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+                  groups: users, admin, docker, podman
+                  ssh_authorized_keys:
+                    {{ vm_ssh_authorized_keys | indent( width=20 ) }}
+              runcmd:
+                - "sudo mkdir /mnt/prepare-nvme-devices"
+                - "sudo mount -t virtiofs prepare-nvme-devices /mnt/prepare-nvme-devices"
+                - "sudo mkdir /mnt/kernel-modules-disk"
+                - "sudo mount /dev/sr0 /mnt/kernel-modules-disk"
+                - "sudo tar -xvf /mnt/kernel-modules-disk/kernel_m.tgz --directory /usr/lib/modules/"
+                - "sudo modprobe tun"
+                - "sudo loginctl enable-linger fedora"
+                - "sudo dnf -y install dnf-plugins-core jq nvme-cli"
+                - "sudo dnf-3 config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo"
+                - "sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+                - "sudo systemctl enable --now docker"
+                - "sudo chown -R fedora: /var/run/docker.sock"
+                - "sudo chmod +x /mnt/prepare-nvme-devices/prepare-nvme-devices.sh"
+                - "sudo /mnt/prepare-nvme-devices/prepare-nvme-devices.sh"
+                - "sudo touch /vm-ready"

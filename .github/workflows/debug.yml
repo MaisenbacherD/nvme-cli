@@ -1,0 +1,40 @@
+---
+name: debug
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: arc-vm-dennis-nvme-cli
+    steps:
+      - name: Install kubectl
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install curl j2cli
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          KUBEVIRT_VERSION=$(kubectl get kubevirt.kubevirt.io/kubevirt -n kubevirt -o=jsonpath="{.status.observedKubeVirtVersion}")
+          curl -L -o virtctl https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/virtctl-${KUBEVIRT_VERSION}-linux-amd64
+          sudo install -o root -g root -m 0755 virtctl /usr/local/bin
+      - uses: actions/checkout@v4
+      # VM setup
+      - name: Test
+        run: |
+          ssh-keygen -b 2048 -t rsa -f ~/.ssh/identity -q -N ""
+          export vm_ssh_authorized_keys=$(cat ~/.ssh/identity.pub | xargs)
+          export kernel_version=linus-master
+          export vm_name=test
+          j2 .github/workflows/vm.yml.j2 -o vm.yml
+          kubectl create -f vm.yml
+          ssh_options=(--identity-file=$(realpath ~/.ssh/identity | xargs) --local-ssh --local-ssh-opts="-o StrictHostKeyChecking=no")
+          while true; do
+            echo "Waiting for VM to be up and running"
+            virtctl ssh fedora@${vm_name} "${ssh_options[@]}" --command="ls /vm-ready" && break
+            sleep 10
+          done
+      - name: Delete VM
+        run: |
+          kubectl delete -f vm.yml
+        if: ${{ always() }}
