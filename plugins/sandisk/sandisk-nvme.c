@@ -146,7 +146,7 @@ static int sndk_capabilities(int argc, char **argv,
 		return ret;
 
 	/* get capabilities */
-	r = nvme_scan(NULL);
+	nvme_scan_topology(r, NULL, NULL);
 	sndk_check_device(r, l);
 	capabilities = sndk_get_drive_capabilities(r, l);
 
