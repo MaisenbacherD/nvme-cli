@@ -1,6 +1,7 @@
 name: upload
 
 on:
+  workflow_dispatch:
   push:
     branches: [master]
   release:
@@ -20,10 +21,9 @@ jobs:
           make static
           mkdir upload
           cp .build/nvme upload/nvme
-          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-            cp .build/nvme "upload/nvme-${VERSION}"
-          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo $VERSION
+          cp .build/nvme "upload/nvme-${VERSION}"
 
       - uses: actions/upload-artifact@v4
         name: upload artifacts to github
