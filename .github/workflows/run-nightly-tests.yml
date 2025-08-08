@@ -8,15 +8,111 @@ on:
 
 jobs:
   nightly-tests:
-    if: github.repository == 'linux-nvme/nvme-cli'
-    runs-on: arc-vm-nvme-cli
+    #if: github.repository == 'linux-nvme/nvme-cli'
+    #runs-on: arc-vm-nvme-cli
+    runs-on: arc-vm-dennis-nvme-cli
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: "linux-blktests/blktests-ci"
+          #repository: "linux-blktests/blktests-ci"
+          repository: "MaisenbacherD/blktests-ci"
       #We don't have to build the kernel here, as we have a cron job running on
       #the k8s cluster that builds the linus-master target nightly.
-      - name: Run in VM
+      - name: Run blktests in VM
+        uses: ./.github/actions/kubevirt-action
+        with:
+          kernel_version: linus-master
+          vm_artifact_upload_dir: blktests/results/
+          run_cmds: |
+            set -e
+            set -x
+            uname -a
+
+            sudo dnf install -y gcc clang make util-linux llvm gawk fio udev \
+            kmod coreutils g++ gzip e2fsprogs xfsprogs f2fs-tools btrfs-progs \
+            device-mapper-multipath blktrace kernel-headers liburing \
+            liburing-devel nbd device-mapper ktls-utils dosfstools mdadm \
+            bc libnl3-cli cryptsetup sg3_utils pciutils unzip jq git wget \
+            meson json-c-devel openssl-devel keyutils-libs-devel dbus-devel \
+            swig xz-devel libcurl-devel curl libarchive libarchive-devel json-c
+
+            git clone https://github.com/${{ github.repository }} nvme-cli
+            cd nvme-cli
+            scripts/build.sh -b release -c gcc
+            sudo meson install -C .build-ci
+            sudo ldconfig /usr/local/lib64
+
+            cd -
+            git clone https://github.com/linux-blktests/blktests.git blktests
+
+            cd blktests
+            make
+
+            # Run blktests nvme and md group
+            cat > config << EF
+            TEST_DEVS=(${BDEV0})
+            NVMET_TRTYPES="loop rdma tcp"
+            EF
+            sudo ./check nvme
+            #sudo ./check nvme md
+          #
+      # - name: Run blktests in VM
+      #   uses: ./.github/actions/kubevirt-action
+      #   with:
+      #     kernel_version: linus-master
+      #     vm_artifact_upload_dir: blktests/results/
+      #     run_cmds: |
+      #       cat > test.sh << 'EOF'
+      #       #!/bin/bash
+      #       set -e
+      #       set -x
+      #       uname -a
+      #
+      #       git clone https://github.com/${{ github.repository }} /nvme-cli
+      #       cd /nvme-cli
+      #       scripts/build.sh -b release -c gcc
+      #       meson install -C .build-ci
+      #       ldconfig /usr/local/lib64
+      #
+      #       cd -
+      #       git clone https://github.com/linux-blktests/blktests.git /blktests
+      #
+      #       cd blktests
+      #       make
+      #
+      #       # Run blktests nvme and md group
+      #       cat > config << EF
+      #       TEST_DEVS=(${BDEV0})
+      #       NVMET_TRTYPES="loop rdma tcp"
+      #       EF
+      #       sudo ./check nvme
+      #       #sudo ./check nvme md
+      #       EOF
+      #
+      #       sudo modprobe loop raid1 brd siw nvme_loop nvme_tcp nvmet_tcp nvme_fabrics \
+      #       nvme_rdma nvmet_rdma
+      #
+      #       sudo chmod +x test.sh
+      #
+      #       #Create shared volume mount point for artifact upload
+      #       mkdir blktests
+      #
+      #       #Expose all devices to the container through the `privileged` flag.
+      #       #
+      #       #BDEV0 is an environment variable of the self-hosted runner instance
+      #       #that contains a valid nvme namespace which is capable of the nvm
+      #       #command set.
+      #
+      #       sudo docker run --privileged \
+      #       -v "/dev":"/dev":z \
+      #       -v /sys:/sys:z \
+      #       -v /lib/modules:/lib/modules:ro \
+      #       -v /run/udev:/run/udev:ro \
+      #       -e BDEV0 \
+      #       -v "${PWD}/test.sh":"/test.sh" \
+      #       -v "${PWD}/blktests":"/blktests":z \
+      #       docker.io/maisenbacherd/linux-nvme-fedora.blktests:latest /test.sh
+      - name: Run nvme-cli tests in VM
         uses: ./.github/actions/kubevirt-action
         with:
           kernel_version: linus-master
