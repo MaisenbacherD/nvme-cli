@@ -232,6 +232,7 @@ test_muon() {
 }
 
 _install_libnvme() {
+    local libnvme_repo=$(sed -n "s/url = \(.*\)/\1/p" subprojects/libnvme.wrap)
     local libnvme_ref=$(sed -n "s/revision = \([0-9a-z]\+\)/\1/p" subprojects/libnvme.wrap)
     local LBUILDDIR="${BUILDDIR}/.build-libnvme"
 
@@ -239,7 +240,7 @@ _install_libnvme() {
 
     pushd "${BUILDDIR}/libnvme"
     git init
-    git remote add origin https://github.com/linux-nvme/libnvme.git
+    git remote add origin ${libnvme_repo}
     git fetch origin ${libnvme_ref}
     git reset --hard FETCH_HEAD
 
