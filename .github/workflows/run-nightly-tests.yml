@@ -17,6 +17,7 @@ jobs:
       #We don't have to build the kernel here, as we have a cron job running on
       #the k8s cluster that builds the linus-master target nightly.
       - name: Run blktests in VM
+        id: blktests
         uses: ./.github/actions/kubevirt-action
         with:
           kernel_version: linus-master
@@ -73,7 +74,7 @@ jobs:
             EF
             sudo ./check nvme md/001
       - name: Run nvme-cli tests in VM
-        if: always()
+        if: success() || steps.blktests.conclusion == 'failure'
         uses: ./.github/actions/kubevirt-action
         with:
           kernel_version: linus-master
@@ -88,6 +89,7 @@ jobs:
             uname -a
             PIPX_BIN_DIR=/usr/local/bin pipx install nose2 --force
             git clone https://github.com/${{ github.repository }} /nvme-cli
+            git config --global --add safe.directory /nvme-cli
             cd /nvme-cli
             git checkout ${{ github.sha }}
             scripts/build.sh -b release -c gcc
