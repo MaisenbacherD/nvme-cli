@@ -2189,7 +2189,7 @@ static void GetErrorlogData(nvme_link_t l, int entries, const char *dir)
 	if (!error_log)
 		return;
 
-	if (!nvme_get_log_error(l, entries, false, error_log))
+	if (!nvme_get_log_error(l, false, entries, error_log))
 		WriteData((__u8 *)error_log, logSize, dir,
 			  "error_information_log.bin", "error log");
 

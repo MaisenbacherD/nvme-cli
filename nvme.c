@@ -1200,7 +1200,7 @@ static int get_error_log(int argc, char **argv, struct command *cmd, struct plug
 	if (!err_log)
 		return -ENOMEM;
 
-	err = nvme_get_log_error(l, cfg.log_entries, false, err_log);
+	err = nvme_get_log_error(l, false, cfg.log_entries, err_log);
 	if (!err)
 		nvme_show_error_log(err_log, cfg.log_entries,
 				    nvme_link_get_name(l), flags);

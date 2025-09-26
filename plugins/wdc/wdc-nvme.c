@@ -10173,7 +10173,7 @@ static int wdc_do_drive_essentials(nvme_root_t r, nvme_link_t l,
 	dataBuffer = calloc(1, elogBufferSize);
 	elogBuffer = (struct nvme_error_log_page *)dataBuffer;
 
-	ret = nvme_get_log_error(l, elogNumEntries, false,
+	ret = nvme_get_log_error(l, false, elogNumEntries,
 				 elogBuffer);
 	if (ret) {
 		fprintf(stderr, "ERROR: WDC: nvme_error_log() failed, ret = %d\n", ret);
