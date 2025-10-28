@@ -2002,7 +2002,9 @@ static int ocp_get_telemetry_profile_feature(int argc, char **argv, struct comma
 ///////////////////////////////////////////////////////////////////////////////
 /// DSSD Power State (Feature Identifier C7h) Set Feature
 
-static int set_dssd_power_state(nvme_link_t l, const __u32 nsid,
+static int
+set_dssd_power_state(struct nvme_transport_handle *hdl,
+				const __u32 nsid,
 				const __u8 fid, __u8 power_state, bool sv,
 				bool uuid)
 {
